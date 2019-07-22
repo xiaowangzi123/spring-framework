@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.messaging.rsocket.annotation.support;
+package org.springframework.messaging.rsocket;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,8 +31,6 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.io.buffer.NettyDataBufferFactory;
 import org.springframework.lang.Nullable;
-import org.springframework.messaging.rsocket.RSocketStrategies;
-import org.springframework.util.Assert;
 import org.springframework.util.MimeType;
 
 /**
@@ -49,19 +47,15 @@ import org.springframework.util.MimeType;
  */
 public class DefaultMetadataExtractor implements MetadataExtractor {
 
-	private final RSocketStrategies rsocketStrategies;
-
 	private final Map<String, EntryProcessor<?>> entryProcessors = new HashMap<>();
 
 
 	/**
 	 * Default constructor with {@link RSocketStrategies}.
 	 */
-	public DefaultMetadataExtractor(RSocketStrategies strategies) {
-		Assert.notNull(strategies, "RSocketStrategies is required");
-		this.rsocketStrategies = strategies;
+	public DefaultMetadataExtractor() {
 		// TODO: remove when rsocket-core API available
-		metadataToExtract(MessagingRSocket.ROUTING, String.class, ROUTE_KEY);
+		metadataToExtract(MetadataExtractor.ROUTING, String.class, ROUTE_KEY);
 	}
 
 
@@ -129,27 +123,29 @@ public class DefaultMetadataExtractor implements MetadataExtractor {
 
 
 	@Override
-	public Map<String, Object> extract(Payload payload, MimeType metadataMimeType) {
+	public Map<String, Object> extract(Payload payload, MimeType metadataMimeType, RSocketStrategies strategies) {
 		Map<String, Object> result = new HashMap<>();
-		if (metadataMimeType.equals(MessagingRSocket.COMPOSITE_METADATA)) {
+		if (metadataMimeType.equals(COMPOSITE_METADATA)) {
 			for (CompositeMetadata.Entry entry : new CompositeMetadata(payload.metadata(), false)) {
-				processEntry(entry.getContent(), entry.getMimeType(), result);
+				processEntry(entry.getContent(), entry.getMimeType(), result, strategies);
 			}
 		}
 		else {
-			processEntry(payload.metadata(), metadataMimeType.toString(), result);
+			processEntry(payload.metadata(), metadataMimeType.toString(), result, strategies);
 		}
 		return result;
 	}
 
-	private void processEntry(ByteBuf content, @Nullable String mimeType, Map<String, Object> result) {
+	private void processEntry(ByteBuf content,
+			@Nullable String mimeType, Map<String, Object> result, RSocketStrategies strategies) {
+
 		EntryProcessor<?> entryProcessor = this.entryProcessors.get(mimeType);
 		if (entryProcessor != null) {
 			content.retain();
-			entryProcessor.process(content, result);
+			entryProcessor.process(content, result, strategies);
 			return;
 		}
-		if (MessagingRSocket.ROUTING.toString().equals(mimeType)) {
+		if (MetadataExtractor.ROUTING.toString().equals(mimeType)) {
 			// TODO: use rsocket-core API when available
 		}
 	}
@@ -166,8 +162,6 @@ public class DefaultMetadataExtractor implements MetadataExtractor {
 		private final ResolvableType targetType;
 
 		private final BiConsumer<T, Map<String, Object>> accumulator;
-
-		private final Decoder<T> decoder;
 
 
 		public EntryProcessor(
@@ -191,17 +185,17 @@ public class DefaultMetadataExtractor implements MetadataExtractor {
 			this.mimeType = mimeType;
 			this.targetType = targetType;
 			this.accumulator = accumulator;
-			this.decoder = rsocketStrategies.decoder(targetType, mimeType);
 		}
 
 
-		public void process(ByteBuf byteBuf, Map<String, Object> result) {
-			DataBufferFactory factory = rsocketStrategies.dataBufferFactory();
+		public void process(ByteBuf byteBuf, Map<String, Object> result, RSocketStrategies strategies) {
+			DataBufferFactory factory = strategies.dataBufferFactory();
 			DataBuffer buffer =  factory instanceof NettyDataBufferFactory ?
 					((NettyDataBufferFactory) factory).wrap(byteBuf) :
 					factory.wrap(byteBuf.nioBuffer());
 
-			T value = this.decoder.decode(buffer, this.targetType, this.mimeType, Collections.emptyMap());
+			Decoder<T> decoder = strategies.decoder(this.targetType, this.mimeType);
+			T value = decoder.decode(buffer, this.targetType, this.mimeType, Collections.emptyMap());
 			this.accumulator.accept(value, result);
 		}
 	}

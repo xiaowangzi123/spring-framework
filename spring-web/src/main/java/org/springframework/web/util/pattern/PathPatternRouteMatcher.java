@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.web.util.pattern;
 
 import java.util.Comparator;
@@ -103,6 +104,12 @@ public class PathPatternRouteMatcher implements RouteMatcher {
 		@Override
 		public String value() {
 			return this.pathContainer.value();
+		}
+
+
+		@Override
+		public String toString() {
+			return value();
 		}
 	}
 

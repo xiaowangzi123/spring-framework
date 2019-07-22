@@ -18,7 +18,6 @@ package org.springframework.messaging.rsocket;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -31,7 +30,6 @@ import io.rsocket.transport.netty.client.WebsocketClientTransport;
 import reactor.core.publisher.Mono;
 
 import org.springframework.lang.Nullable;
-import org.springframework.messaging.rsocket.annotation.support.RSocketMessageHandler;
 import org.springframework.util.Assert;
 import org.springframework.util.MimeType;
 
@@ -49,14 +47,13 @@ final class DefaultRSocketRequesterBuilder implements RSocketRequester.Builder {
 
 	private MimeType metadataMimeType = DefaultRSocketRequester.COMPOSITE_METADATA;
 
-	private List<Consumer<RSocketFactory.ClientRSocketFactory>> factoryConfigurers = new ArrayList<>();
-
 	@Nullable
 	private RSocketStrategies strategies;
 
 	private List<Consumer<RSocketStrategies.Builder>> strategiesConfigurers = new ArrayList<>();
 
-	private List<Object> handlers = new ArrayList<>();
+	private List<ClientRSocketFactoryConfigurer> rsocketFactoryConfigurers = new ArrayList<>();
+
 
 	@Override
 	public RSocketRequester.Builder dataMimeType(@Nullable MimeType mimeType) {
@@ -72,26 +69,20 @@ final class DefaultRSocketRequesterBuilder implements RSocketRequester.Builder {
 	}
 
 	@Override
-	public RSocketRequester.Builder rsocketFactory(Consumer<RSocketFactory.ClientRSocketFactory> configurer) {
-		this.factoryConfigurers.add(configurer);
-		return this;
-	}
-
-	@Override
 	public RSocketRequester.Builder rsocketStrategies(@Nullable RSocketStrategies strategies) {
 		this.strategies = strategies;
 		return this;
 	}
 
 	@Override
-	public RSocketRequester.Builder annotatedHandlers(Object... handlers) {
-		this.handlers.addAll(Arrays.asList(handlers));
+	public RSocketRequester.Builder rsocketStrategies(Consumer<RSocketStrategies.Builder> configurer) {
+		this.strategiesConfigurers.add(configurer);
 		return this;
 	}
 
 	@Override
-	public RSocketRequester.Builder rsocketStrategies(Consumer<RSocketStrategies.Builder> configurer) {
-		this.strategiesConfigurers.add(configurer);
+	public RSocketRequester.Builder rsocketFactory(ClientRSocketFactoryConfigurer configurer) {
+		this.rsocketFactoryConfigurers.add(configurer);
 		return this;
 	}
 
@@ -119,16 +110,12 @@ final class DefaultRSocketRequesterBuilder implements RSocketRequester.Builder {
 		MimeType dataMimeType = getDataMimeType(rsocketStrategies);
 		rsocketFactory.dataMimeType(dataMimeType.toString());
 		rsocketFactory.metadataMimeType(this.metadataMimeType.toString());
-
-		if (!this.handlers.isEmpty()) {
-			RSocketMessageHandler messageHandler = new RSocketMessageHandler();
-			messageHandler.setHandlers(this.handlers);
-			messageHandler.setRSocketStrategies(rsocketStrategies);
-			messageHandler.afterPropertiesSet();
-			rsocketFactory.acceptor(messageHandler.clientAcceptor());
-		}
 		rsocketFactory.frameDecoder(PayloadDecoder.ZERO_COPY);
-		this.factoryConfigurers.forEach(consumer -> consumer.accept(rsocketFactory));
+
+		this.rsocketFactoryConfigurers.forEach(configurer -> {
+			configurer.configureWithStrategies(rsocketStrategies);
+			configurer.configure(rsocketFactory);
+		});
 
 		return rsocketFactory.transport(transport)
 				.start()

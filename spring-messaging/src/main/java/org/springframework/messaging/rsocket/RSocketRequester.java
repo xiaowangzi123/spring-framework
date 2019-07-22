@@ -21,7 +21,6 @@ import java.util.function.Consumer;
 
 import io.rsocket.ConnectionSetupPayload;
 import io.rsocket.RSocket;
-import io.rsocket.RSocketFactory;
 import io.rsocket.transport.ClientTransport;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
@@ -30,7 +29,7 @@ import reactor.core.publisher.Mono;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.ReactiveAdapterRegistry;
 import org.springframework.lang.Nullable;
-import org.springframework.messaging.rsocket.annotation.support.RSocketMessageHandler;
+import org.springframework.messaging.rsocket.annotation.support.AnnotationClientResponderConfigurer;
 import org.springframework.util.MimeType;
 
 /**
@@ -64,7 +63,6 @@ public interface RSocketRequester {
 	 * server side it's obtained from the {@link ConnectionSetupPayload}.
 	 */
 	MimeType metadataMimeType();
-
 
 	/**
 	 * Begin to specify a new request with the given route to a remote handler.
@@ -144,20 +142,9 @@ public interface RSocketRequester {
 		RSocketRequester.Builder metadataMimeType(MimeType mimeType);
 
 		/**
-		 * Configure the {@code ClientRSocketFactory}.
-		 * <p><strong>Note:</strong> This builder provides shortcuts for certain
-		 * {@code ClientRSocketFactory} options it needs to know about such as
-		 * {@link #dataMimeType(MimeType)} and {@link #metadataMimeType(MimeType)}.
-		 * Please, use these shortcuts vs configuring them directly on the
-		 * {@code ClientRSocketFactory} so that the resulting
-		 * {@code RSocketRequester} is aware of those changes.
-		 * @param configurer consumer to customize the factory
-		 */
-		RSocketRequester.Builder rsocketFactory(Consumer<RSocketFactory.ClientRSocketFactory> configurer);
-
-		/**
 		 * Set the {@link RSocketStrategies} to use for access to encoders,
 		 * decoders, and a factory for {@code DataBuffer's}.
+		 * @param strategies the codecs strategies to use
 		 */
 		RSocketRequester.Builder rsocketStrategies(@Nullable RSocketStrategies strategies);
 
@@ -171,15 +158,18 @@ public interface RSocketRequester {
 		RSocketRequester.Builder rsocketStrategies(Consumer<RSocketStrategies.Builder> configurer);
 
 		/**
-		 * Add handlers for processing requests sent by the server.
-		 * <p>This is a shortcut for registering client handlers (i.e. annotated controllers)
-		 * to a {@link RSocketMessageHandler} and configuring it as an acceptor.
-		 * You can take full control by manually registering an acceptor on the
-		 * {@link RSocketFactory.ClientRSocketFactory} using {@link #rsocketFactory(Consumer)}
-		 * instead.
-		 * @param handlers the client handlers to configure on the requester
+		 * Callback to configure the {@code ClientRSocketFactory} directly.
+		 * <p>See {@link AnnotationClientResponderConfigurer} for configuring a
+		 * client side responder.
+		 * <p><strong>Note:</strong> Do not set {@link #dataMimeType(MimeType)}
+		 * and {@link #metadataMimeType(MimeType)} directly on the
+		 * {@code ClientRSocketFactory}. Use the shortcuts on this builder
+		 * instead since the created {@code RSocketRequester} needs to be aware
+		 * of those settings.
+		 * @param configurer consumer to customize the factory
+		 * @see AnnotationClientResponderConfigurer
 		 */
-		RSocketRequester.Builder annotatedHandlers(Object... handlers);
+		RSocketRequester.Builder rsocketFactory(ClientRSocketFactoryConfigurer configurer);
 
 		/**
 		 * Connect to the RSocket server over TCP.
@@ -243,10 +233,10 @@ public interface RSocketRequester {
 		 * @param producer the source of payload data value(s). This must be a
 		 * {@link Publisher} or another producer adaptable to a
 		 * {@code Publisher} via {@link ReactiveAdapterRegistry}
-		 * @param elementType the type of values to be produced
+		 * @param elementClass the type of values to be produced
 		 * @return spec for declaring the expected response
 		 */
-		ResponseSpec data(Object producer, Class<?> elementType);
+		ResponseSpec data(Object producer, Class<?> elementClass);
 
 		/**
 		 * Alternative of {@link #data(Object, Class)} but with a

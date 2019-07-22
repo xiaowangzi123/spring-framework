@@ -1913,8 +1913,8 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		}
 		else {
 			try {
-				ReflectionUtils.makeAccessible(initMethod);
-				initMethod.invoke(bean);
+				ReflectionUtils.makeAccessible(methodToInvoke);
+				methodToInvoke.invoke(bean);
 			}
 			catch (InvocationTargetException ex) {
 				throw ex.getTargetException();

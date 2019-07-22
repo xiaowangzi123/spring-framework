@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.messaging.rsocket.annotation.support;
+package org.springframework.messaging.rsocket;
 
 import java.time.Duration;
 import java.util.Map;
@@ -31,16 +31,13 @@ import reactor.core.publisher.Mono;
 import org.springframework.core.codec.CharSequenceEncoder;
 import org.springframework.core.codec.StringDecoder;
 import org.springframework.core.io.buffer.DataBufferFactory;
-import org.springframework.messaging.rsocket.LeakAwareNettyDataBufferFactory;
-import org.springframework.messaging.rsocket.RSocketRequester;
-import org.springframework.messaging.rsocket.RSocketStrategies;
 import org.springframework.util.Assert;
 import org.springframework.util.MimeType;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.messaging.rsocket.annotation.support.MessagingRSocket.COMPOSITE_METADATA;
-import static org.springframework.messaging.rsocket.annotation.support.MessagingRSocket.ROUTING;
-import static org.springframework.messaging.rsocket.annotation.support.MetadataExtractor.ROUTE_KEY;
+import static org.springframework.messaging.rsocket.MetadataExtractor.COMPOSITE_METADATA;
+import static org.springframework.messaging.rsocket.MetadataExtractor.ROUTE_KEY;
+import static org.springframework.messaging.rsocket.MetadataExtractor.ROUTING;
 import static org.springframework.util.MimeTypeUtils.TEXT_HTML;
 import static org.springframework.util.MimeTypeUtils.TEXT_PLAIN;
 import static org.springframework.util.MimeTypeUtils.TEXT_XML;
@@ -73,7 +70,7 @@ public class DefaultMetadataExtractorTests {
 		this.captor = ArgumentCaptor.forClass(Payload.class);
 		BDDMockito.when(this.rsocket.fireAndForget(captor.capture())).thenReturn(Mono.empty());
 
-		this.extractor = new DefaultMetadataExtractor(this.strategies);
+		this.extractor = new DefaultMetadataExtractor();
 	}
 
 	@After
@@ -94,7 +91,7 @@ public class DefaultMetadataExtractorTests {
 				.send().block();
 
 		Payload payload = this.captor.getValue();
-		Map<String, Object> result = this.extractor.extract(payload, COMPOSITE_METADATA);
+		Map<String, Object> result = this.extractor.extract(payload, COMPOSITE_METADATA, this.strategies);
 		payload.release();
 
 		assertThat(result).hasSize(1).containsEntry(ROUTE_KEY, "toA");
@@ -116,7 +113,7 @@ public class DefaultMetadataExtractorTests {
 				.block();
 
 		Payload payload = this.captor.getValue();
-		Map<String, Object> result = this.extractor.extract(payload, COMPOSITE_METADATA);
+		Map<String, Object> result = this.extractor.extract(payload, COMPOSITE_METADATA, this.strategies);
 		payload.release();
 
 		assertThat(result).hasSize(4)
@@ -131,7 +128,7 @@ public class DefaultMetadataExtractorTests {
 
 		requester(ROUTING).route("toA").data("data").send().block();
 		Payload payload = this.captor.getValue();
-		Map<String, Object> result = this.extractor.extract(payload, ROUTING);
+		Map<String, Object> result = this.extractor.extract(payload, ROUTING, this.strategies);
 		payload.release();
 
 		assertThat(result).hasSize(1).containsEntry(ROUTE_KEY, "toA");
@@ -144,7 +141,7 @@ public class DefaultMetadataExtractorTests {
 
 		requester(TEXT_PLAIN).route("toA").data("data").send().block();
 		Payload payload = this.captor.getValue();
-		Map<String, Object> result = this.extractor.extract(payload, TEXT_PLAIN);
+		Map<String, Object> result = this.extractor.extract(payload, TEXT_PLAIN, this.strategies);
 		payload.release();
 
 		assertThat(result).hasSize(1).containsEntry(ROUTE_KEY, "toA");
@@ -162,7 +159,7 @@ public class DefaultMetadataExtractorTests {
 
 		requester(TEXT_PLAIN).metadata("toA:text data", null).data("data").send().block();
 		Payload payload = this.captor.getValue();
-		Map<String, Object> result = this.extractor.extract(payload, TEXT_PLAIN);
+		Map<String, Object> result = this.extractor.extract(payload, TEXT_PLAIN, this.strategies);
 		payload.release();
 
 		assertThat(result).hasSize(2)

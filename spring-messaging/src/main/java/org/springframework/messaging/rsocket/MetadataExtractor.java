@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.springframework.messaging.rsocket.annotation.support;
+package org.springframework.messaging.rsocket;
 
 import java.util.Map;
 
@@ -38,6 +38,16 @@ public interface MetadataExtractor {
 	 */
 	String ROUTE_KEY = "route";
 
+	/**
+	 * Constant for mime type {@code message/x.rsocket.composite-metadata.v0}.
+	 */
+	MimeType COMPOSITE_METADATA = new MimeType("message", "x.rsocket.composite-metadata.v0");
+
+	/**
+	 * Constant for mime type {@code message/x.rsocket.routing.v0}.
+	 */
+	MimeType ROUTING = new MimeType("message", "x.rsocket.routing.v0");
+
 
 	/**
 	 * Extract a map of values from the given {@link Payload} metadata.
@@ -48,8 +58,9 @@ public interface MetadataExtractor {
 	 * @param payload the payload whose metadata should be read
 	 * @param metadataMimeType the mime type of the metadata; this is what was
 	 * specified by the client at the start of the RSocket connection.
+	 * @param strategies for access to codecs and a DataBufferFactory
 	 * @return a map of 0 or more decoded metadata values with assigned names
 	 */
-	Map<String, Object> extract(Payload payload, MimeType metadataMimeType);
+	Map<String, Object> extract(Payload payload, MimeType metadataMimeType, RSocketStrategies strategies);
 
 }
